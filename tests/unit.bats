@@ -340,11 +340,62 @@ setup() {
   [ "$status" -eq 1 ]
 }
 
-@test "needs_reboot: a Raspberry Pi style kernel name is not detected (documented limitation)" {
-  mk_kernel 6.6.51+rpt-rpi-v8
-  mk_kernel 6.6.62+rpt-rpi-v8
+@test "needs_reboot: Pi-style kernel, only the running modules installed, means no reboot" {
+  mk_modules 6.6.51+rpt-rpi-v8
   sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
   [ "$status" -eq 1 ]
+}
+
+@test "needs_reboot: Pi-style kernel with newer modules of the same flavor means reboot" {
+  mk_modules 6.6.51+rpt-rpi-v8
+  mk_modules 6.6.62+rpt-rpi-v8
+  sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 0 ]
+}
+
+@test "needs_reboot: Pi-style kernel replaced in place (running modules gone) means reboot" {
+  mk_modules 6.6.62+rpt-rpi-v8
+  sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 0 ]
+}
+
+@test "needs_reboot: Pi-style kernel ignores newer modules of another flavor" {
+  mk_modules 6.6.51+rpt-rpi-v8
+  mk_modules 6.6.62+rpt-rpi-2712
+  sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 1 ]
+}
+
+@test "needs_reboot: Pi-style kernel with only older modules means no reboot" {
+  mk_modules 6.6.31+rpt-rpi-v8
+  sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 1 ]
+}
+
+@test "needs_reboot: Pi-style kernel uses version sort (6.6.9 -> 6.6.10)" {
+  mk_modules 6.6.9+rpt-rpi-v8
+  mk_modules 6.6.10+rpt-rpi-v8
+  sh_run 'FAKE_KERNEL=6.6.9+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 0 ]
+}
+
+@test "needs_reboot: no /lib/modules directory means no reboot (containers)" {
+  rmdir "$TEST_MODULES_DIR"
+  sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 1 ]
+}
+
+@test "needs_reboot: Debian-style kernels ignore /lib/modules entirely" {
+  mk_kernel 6.1.0-18-generic
+  mk_modules 6.1.0-19-generic
+  sh_run 'needs_reboot'
+  [ "$status" -eq 1 ]
+}
+
+@test "needs_reboot: /run/reboot-required still wins on Pi-style kernels" {
+  : > "$TEST_REBOOT_FLAG"
+  sh_run 'FAKE_KERNEL=6.6.51+rpt-rpi-v8; needs_reboot'
+  [ "$status" -eq 0 ]
 }
 
 # ---------------------------------------------------------------------------

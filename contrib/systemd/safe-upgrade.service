@@ -1,0 +1,13 @@
+[Unit]
+Description=Guarded system upgrade (safe-upgrade)
+Documentation=https://github.com/Jeffeek/safe-upgrade
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/safe-upgrade
+# Start with --no-reboot; switch to --reboot once you trust the setup.
+ExecStart=/usr/local/sbin/safe-upgrade.sh --no-reboot
+TimeoutStartSec=infinity
+TimeoutStopSec=30min

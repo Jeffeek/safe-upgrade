@@ -1,0 +1,6 @@
+#MAX_REMOVALS=5
+#PROTECTED_PKGS=openssh-server sudo systemd ufw network-manager netplan.io
+#PRE_UPGRADE_HOOK=/usr/local/sbin/pre-upgrade-snapshot.sh
+#POST_UPGRADE_SERVICES=ssh nginx
+#NOTIFY_ON=attention
+#NOTIFY_CMD=/usr/local/sbin/notify-ops.sh

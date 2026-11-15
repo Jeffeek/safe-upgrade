@@ -22,10 +22,13 @@ mk_kernel() {
   fi
 }
 
+mk_modules() { mkdir -p "$TEST_MODULES_DIR/$1"; }
+
 # Per-test sandbox directories, wired into the script via stubs.bash.
 make_sandbox() {
   export TEST_BOOT_DIR="$BATS_TEST_TMPDIR/boot"
   export TEST_STATE_DIR="$BATS_TEST_TMPDIR/state"
   export TEST_REBOOT_FLAG="$BATS_TEST_TMPDIR/reboot-required"
-  mkdir -p "$TEST_BOOT_DIR" "$TEST_STATE_DIR"
+  export TEST_MODULES_DIR="$BATS_TEST_TMPDIR/modules"
+  mkdir -p "$TEST_BOOT_DIR" "$TEST_STATE_DIR" "$TEST_MODULES_DIR"
 }

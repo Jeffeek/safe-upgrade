@@ -1,0 +1,49 @@
+name: Bug report
+description: Something went wrong while running safe-upgrade.sh
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please **do not** paste secrets (webhook URLs, tokens) from `NOTIFY_CMD`.
+        For security problems use the private reporting link instead (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Script version
+      description: Release tag or commit.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and version
+      description: Output of `lsb_release -ds` plus architecture (`uname -m`).
+      placeholder: Ubuntu 24.04 LTS, aarch64
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and environment variables used
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant log output
+      description: From /var/log/safe-upgrade.log (or the terminal for --dry-run).
+      render: text
+  - type: textarea
+    id: simulation
+    attributes:
+      label: Output of `apt-get -s full-upgrade`
+      render: text

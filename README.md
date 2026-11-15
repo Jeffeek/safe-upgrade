@@ -295,47 +295,16 @@ A reboot is considered needed when `/run/reboot-required` exists, or when a newe
 | `--no-reboot` | Never reboots; reports that one is pending. |
 | *(default)* | Prompts on a terminal; otherwise does not reboot. |
 
-If any step failed, no automatic reboot is scheduled. Reboot-loop protection refuses an automatic reboot if uptime is below `REBOOT_MIN_INTERVAL`, the last automatic reboot was more recent, or the state file is unreadable (delete `/var/lib/safe-upgrade/last-auto-reboot` to re-enable). The interval protection applies to `--reboot`, not to the interactive prompt.
+If any step failed, no automatic reboot is scheduled. Reboot-loop protection refuses an automatic reboot if uptime is below `REBOOT_MIN_INTERVAL`, the last automatic reboot was more recent, or the state file is unreadable (delete `/var/lib/safe-upgrade/last-auto-reboot` to re-enable). The interval protection applies to `--reboot`, not to the interactive prompt. /lib/modules fallback exists
 
 ## Scheduling with systemd
 
 A oneshot service plus a persistent timer is recommended: missed runs catch up after downtime and the job gets its own cgroup.
 
-`/etc/systemd/system/safe-upgrade.service`
-
-```ini
-[Unit]
-Description=Guarded system upgrade
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/safe-upgrade.sh --reboot
-TimeoutStartSec=infinity
-TimeoutStopSec=30min
-Environment=MAX_REMOVALS=5
-Environment=NOTIFY_ON=attention
-Environment="POST_UPGRADE_SERVICES=ssh nginx"
-Environment=PRE_UPGRADE_HOOK=/usr/local/sbin/pre-upgrade-snapshot.sh
-Environment="NOTIFY_CMD=/usr/local/sbin/notify-ops.sh"
-# Or keep settings in a root-owned file:
-# EnvironmentFile=/etc/default/safe-upgrade
-```
-
-`/etc/systemd/system/safe-upgrade.timer`
-
-```ini
-[Unit]
-Description=Run guarded system upgrade weekly
-
-[Timer]
-OnCalendar=Sun *-*-* 03:30
-RandomizedDelaySec=30min
-Persistent=true
-
-[Install]
-WantedBy=timers.target
+```bash
+sudo install -m 0644 contrib/systemd/safe-upgrade.service contrib/systemd/safe-upgrade.timer /etc/systemd/system/
+sudo install -m 0600 contrib/systemd/safe-upgrade.default /etc/default/safe-upgrade
+sudo systemctl daemon-reload && sudo systemctl enable --now safe-upgrade.timer
 ```
 
 ```bash
@@ -518,7 +487,7 @@ No packages were changed. Fix the hook (test it standalone as root) or raise `PR
 - **Interruption.** The script traps HUP, INT and TERM but cannot guarantee a clean stop in the middle of `dpkg`. Give systemd units a generous `TimeoutStopSec`.
 - **Flatpak and Snap** are best-effort and have no pre-simulation or guards comparable to APT's.
 - **Drift detection** is an indicator, not a full configuration diff.
-- **Raspberry Pi OS and other non-standard layouts.** Reboot detection relies on `/run/reboot-required` and on `vmlinuz-*` kernel files in `/boot` with Debian/Ubuntu-style names. On Raspberry Pi OS, which often has neither, the script may never report that a reboot is needed after a kernel or firmware update. Reboot manually after such updates.
+- **Firmware updates on Raspberry Pi OS.** Kernels with non-Debian names are detected by comparing /lib/modules directories. Bootloader/EEPROM firmware updates have no reliable marker, so reboot manually after them.
 - **Distribution upgrades** are out of scope; use release codenames in sources.
 
 ## Development, testing and CI

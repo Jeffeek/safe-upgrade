@@ -98,6 +98,7 @@ STATE_DIR=/var/lib/safe-upgrade
 LOCK_FILE=/run/safe-upgrade.lock
 BOOT_DIR=/boot
 REBOOT_FLAG=/run/reboot-required
+MODULES_DIR=/lib/modules
 MAX_REMOVALS="${MAX_REMOVALS-5}"
 MAX_AUTOREMOVALS="${MAX_AUTOREMOVALS-15}"
 PROTECTED_PKGS="${PROTECTED_PKGS-openssh-server sudo systemd ufw network-manager netplan.io}"
@@ -542,6 +543,36 @@ guard_removals() { # label simulation_output limit
   return "$blocked"
 }
 
+# Fallback reboot detection for kernels whose release string is not
+# Debian-style (Raspberry Pi OS, custom kernels). Every kernel package populates
+# /lib/modules/<release>, so a newer directory with the same suffix as the
+# running release (e.g. "+rpt-rpi-v8") means a newer kernel is installed. This
+# also covers packages that replace the running kernel's directory in place.
+needs_reboot_by_modules() { # running_release
+  local running=$1 prefix suffix f name base newest candidates=""
+  prefix=${running%%[!0-9.]*}
+  [ -n "$prefix" ] || return 1
+  suffix=${running#"$prefix"}
+  [ -n "$suffix" ] || return 1
+  [ -d "$MODULES_DIR" ] || return 1
+
+  for f in "$MODULES_DIR"/*; do
+    [ -d "$f" ] || continue
+    name=${f##*/}
+    [[ "$name" == [0-9]*"$suffix" ]] || continue
+    base=${name%"$suffix"}
+    if [[ "$base" =~ ^[0-9][0-9.]*$ ]]; then
+      candidates+="$name"$'\n'
+    fi
+  done
+  [ -n "$candidates" ] || return 1
+
+  newest=$(printf '%s' "$candidates" | sort -V | tail -n1)
+  [ -n "$newest" ] || return 1
+  [ "$newest" != "$running" ] || return 1
+  [ "$(printf '%s\n%s\n' "$running" "$newest" | sort -V | tail -n1)" = "$newest" ]
+}
+
 # Return success when a reboot is needed. Kernels are only compared within the
 # running kernel's flavor (so coexisting -generic/-lowlatency or
 # amd64/cloud-amd64 kernels do not cause false positives), and a newer kernel
@@ -550,7 +581,12 @@ needs_reboot() {
   local running flavor f name base newest candidates=""
   [ -f "$REBOOT_FLAG" ] && return 0
   running=$(uname -r)
-  [[ "$running" =~ ^[0-9][0-9.]*-[0-9]+-(.+)$ ]] || return 1
+  if ! [[ "$running" =~ ^[0-9][0-9.]*-[0-9]+-(.+)$ ]]; then
+    # Not a Debian/Ubuntu-style release string (for example Raspberry Pi OS:
+    # 6.6.51+rpt-rpi-v8); fall back to the installed module directories.
+    needs_reboot_by_modules "$running"
+    return
+  fi
   flavor=${BASH_REMATCH[1]}
 
   for f in "$BOOT_DIR"/vmlinuz-*; do
