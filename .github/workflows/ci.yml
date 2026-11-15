@@ -19,7 +19,7 @@ concurrency:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -95,7 +95,7 @@ jobs:
   # A single required check for branch protection.
   ci-ok:
     name: CI passed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: always()
     needs: [lint, unit-tests, integration]
     steps:
