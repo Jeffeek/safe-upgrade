@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:          # reused by release.yml so a release always passes CI first
+  schedule:
+    - cron: "17 4 * * 1"  # weekly: catches new distro point releases breaking the script
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: File hygiene (shebang, line endings)
+        run: |
+          set -eu
+          first=$(head -n 1 safe-upgrade.sh)
+          [ "$first" = "#!/usr/bin/env bash" ] || { echo "::error file=safe-upgrade.sh,line=1::shebang must be the first line (found: $first)"; exit 1; }
+          if grep -rIl $'\r' --include='*.sh' --include='*.bash' --include='*.bats' --include='*.yml' --include='*.md' --include='Makefile' . ; then
+            echo "::error::CRLF line endings found in the files listed above"; exit 1
+          fi
+
+      - name: Syntax check
+        run: bash -n safe-upgrade.sh && bash -n tests/integration/container-test.sh
+
+      - name: ShellCheck
+        # ShellCheck is preinstalled on GitHub's Ubuntu runners.
+        run: |
+          shellcheck --version
+          shellcheck --severity=warning safe-upgrade.sh tests/integration/container-test.sh
+
+  unit-tests:
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # amd64 and arm64 (Raspberry Pi class) on current and previous LTS.
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core (pinned)
+        run: |
+          git clone --depth 1 --branch v1.10.0 https://github.com/bats-core/bats-core.git "$RUNNER_TEMP/bats-core"
+          sudo "$RUNNER_TEMP/bats-core/install.sh" /usr/local
+          bats --version
+
+      - name: Run tests as a normal user
+        run: bats --print-output-on-failure tests/unit.bats tests/cli.bats
+
+      - name: Run tests as root (covers the root-only branches)
+        run: sudo "$(command -v bats)" --print-output-on-failure tests/unit.bats tests/cli.bats
+
+  integration:
+    name: Integration (${{ matrix.image }} on ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run end-to-end tests in a disposable container
+        # Phase A uses the real apt-get; phase B uses a scripted fake (see
+        # tests/integration/container-test.sh). The container is thrown away.
+        run: |
+          docker run --rm \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -v "$PWD:/src:ro" \
+            "${{ matrix.image }}" bash -c '
+              set -eu
+              printf "#!/bin/sh\nexit 101\n" > /usr/sbin/policy-rc.d
+              chmod +x /usr/sbin/policy-rc.d
+              apt-get update -qq
+              apt-get install -y -qq ca-certificates util-linux >/dev/null
+              bash /src/tests/integration/container-test.sh
+            '
+
+  # A single required check for branch protection.
+  ci-ok:
+    name: CI passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, unit-tests, integration]
+    steps:
+      - name: Verify every job succeeded
+        run: |
+          echo "lint=${{ needs.lint.result }} unit=${{ needs.unit-tests.result }} integration=${{ needs.integration.result }}"
+          [ "${{ needs.lint.result }}" = success ] &&
+          [ "${{ needs.unit-tests.result }}" = success ] &&
+          [ "${{ needs.integration.result }}" = success ]
