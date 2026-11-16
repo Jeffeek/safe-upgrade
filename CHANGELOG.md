@@ -23,6 +23,9 @@ and the project uses [Semantic Versioning](https://semver.org/) (0.x = beta).
 - `SECURITY.md` and GitHub private vulnerability reporting.
 - Issue forms for bug reports and feature requests; blank issues are disabled
   and security reports are redirected to private reporting.
+- CI job and `tests/integration/systemd-test.sh`: the script's service checks
+  and the shipped `contrib/systemd` units are now tested against a real systemd
+  (Ubuntu 22.04/24.04, amd64 and arm64).
 
 ### Changed
 

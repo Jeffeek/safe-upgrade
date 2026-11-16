@@ -500,7 +500,9 @@ tests/
   unit.bats                        unit tests (bats) for the script's functions
   cli.bats                         tests that execute the script (help, bad options, file hygiene)
   test_helper.bash, stubs.bash     helpers; external commands are replaced by shell functions
-  integration/container-test.sh    end-to-end tests, run inside a disposable container
+  integration/
+    container-test.sh              end-to-end tests, run inside a disposable container
+    integration/systemd-test.sh    real-systemd tests (disposable VM only)
 .github/workflows/ci.yml           lint + test matrix + Docker integration
 .github/workflows/release.yml      tag-triggered release (runs CI first)
 Makefile                           make lint | test | integration | check
@@ -531,6 +533,7 @@ The integration script modifies `/var/log`, `/var/lib`, `/run` and `/usr/local/b
 | CLI (`cli.bats`) | The script is executed | `--help`, unknown options, non-root refusal, shebang, line endings, syntax |
 | Integration A | Real `apt-get` in Debian/Ubuntu containers | `--dry-run`, a real run, an immediate second run, `--clean` |
 | Integration B | A scripted fake `apt-get` and `shutdown` | Guards blocking before any change, hook success/failure/timeout, no snapshot on no-op runs, autoremove guard, lock conflict (exit 75), interrupted-run record, invalid configuration, notifications, reboot scheduling and suppression, SIGTERM handling |
+| Systemd (systemd-test.sh) | Real systemd on GitHub runners; fake apt-get | Unit states for POST_UPGRADE_SERVICES, reboot blocking, the contrib service and timer, stopping the service mid-run. |
 
 The tests were also checked by deliberately breaking the script in small ways (for example ignoring the removal limit, or sorting kernel versions as strings) and confirming that tests fail.
 
@@ -542,13 +545,14 @@ The tests were also checked by deliberately breaking the script in small ways (f
 | Unit tests | `ubuntu-22.04`, `ubuntu-24.04`, `ubuntu-24.04-arm` | Same tests on amd64 and arm64 (Raspberry Pi class CPUs), once as a normal user and once as root |
 | Integration | `ubuntu-24.04` and `ubuntu-24.04-arm` x `debian:12`, `debian:13`, `ubuntu:22.04`, `ubuntu:24.04` | The end-to-end tests in 8 containers |
 | CI passed | `ubuntu-latest` | One aggregate check to require in branch protection |
+| Real systemd | ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm | Integration systemd tests |
 
 CI runs on pushes to `main`, on pull requests, on demand, and **weekly**, so a change in a distribution's APT or dpkg behaviour is noticed even when the repository is quiet. Dependabot keeps the GitHub Actions versions current.
 
 ### What is *not* covered
 
 - Real reboots, a real kernel upgrade, and `/boot` layouts of physical machines.
-- Real systemd (`POST_UPGRADE_SERVICES` against live units): containers have no systemd, so only the decision logic is unit-tested.
+- Real systemd is covered on GitHub’s Ubuntu runners only, not on Debian or Raspberry Pi OS
 - Snapshot hooks (LVM, btrfs, ZFS, hypervisor) and restoring from them.
 - Flatpak and Snap flows.
 - Raspberry Pi OS itself. The arm64 jobs test Debian/Ubuntu userland on arm64, not Raspberry Pi OS kernels or firmware packages.

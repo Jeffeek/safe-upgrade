@@ -92,16 +92,35 @@ jobs:
               bash /src/tests/integration/container-test.sh
             '
 
+systemd:
+  name: Real systemd (${{ matrix.os }})
+  runs-on: ${{ matrix.os }}
+  needs: [lint]
+  timeout-minutes: 15
+  strategy:
+    fail-fast: false
+    matrix:
+      os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+  steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+    - name: systemd state
+      run: |
+        systemctl --version | head -n1
+        systemctl is-system-running || true
+    - name: Run real-systemd tests
+      run: sudo env I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes bash tests/integration/systemd-test.sh
+
   # A single required check for branch protection.
   ci-ok:
     name: CI passed
     runs-on: ubuntu-24.04
     if: always()
-    needs: [lint, unit-tests, integration]
+    needs: [lint, unit-tests, integration, systemd]
     steps:
       - name: Verify every job succeeded
         run: |
-          echo "lint=${{ needs.lint.result }} unit=${{ needs.unit-tests.result }} integration=${{ needs.integration.result }}"
+          echo "lint=${{ needs.lint.result }} unit=${{ needs.unit-tests.result }} integration=${{ needs.integration.result }} systemd=${{ needs.systemd.result }}"
           [ "${{ needs.lint.result }}" = success ] &&
           [ "${{ needs.unit-tests.result }}" = success ] &&
-          [ "${{ needs.integration.result }}" = success ]
+          [ "${{ needs.integration.result }}" = success ] &&
+          [ "${{ needs.systemd.result }}" = success ]
