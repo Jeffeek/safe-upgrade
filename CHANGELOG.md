@@ -24,10 +24,11 @@ and the project uses [Semantic Versioning](https://semver.org/) (0.x = beta).
 
 ### Changed
 
-- Documentation now states plainly that the tool is apt/dpkg-only by design
+- Documentation now states the scope plainly: the core is an apt/dpkg upgrader
   (Debian/Ubuntu and close derivatives) and will not become a generic
-  multi-distro upgrader, because its safety comes from being apt-specific. For
-  security-only updates it continues to point at `unattended-upgrades`.
+  multi-distro tool, because its safety comes from being apt-specific. The
+  optional `--flatpak`/`--snap` refreshes are best-effort extras with no guards.
+  For security-only updates it continues to point at `unattended-upgrades`.
 - `contrib/systemd/safe-upgrade.default` now documents every supported
   environment override (commented), so the config file is self-describing.
 - `make lint` and the CI lint step now also ShellCheck `systemd-test.sh` and the
