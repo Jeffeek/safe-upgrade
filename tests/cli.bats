@@ -67,6 +67,7 @@ load test_helper
   [[ "$output" != *"secret-command"* ]]
 }
 
+@test "a non-apt system (no apt-get) is refused with a clear message" {
   # Debian/Ubuntu-only guard: with apt-get absent, preflight must bail out
   # cleanly. Needs root to get past the earlier root check; the probe for
   # apt-get is shadowed so the real binary on the runner is ignored.
