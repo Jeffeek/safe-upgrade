@@ -1,6 +1,55 @@
+# Environment file for safe-upgrade (/etc/default/safe-upgrade).
+#
+# Read by the systemd service via EnvironmentFile=. Every setting is optional;
+# uncomment and edit the ones you need. Run `safe-upgrade.sh --show-config` to
+# see the effective values. This file is root-owned config and may be read by
+# anyone who can read /etc/default, so do not put secrets in NOTIFY_CMD.
+#
+# Values here are shell-free assignments (no quoting rules beyond systemd's):
+# KEY=value, one per line.
+
+# --- removal guards ---
+# Maximum packages a full-upgrade may remove before the run is refused.
 #MAX_REMOVALS=5
+# Maximum packages autoremove may remove.
+#MAX_AUTOREMOVALS=15
+# Extra package names/globs that must never be removed. Essential, Protected,
+# held and running-kernel packages are always protected on top of this.
 #PROTECTED_PKGS=openssh-server sudo systemd ufw network-manager netplan.io
+
+# --- space checks ---
+# Required free space (MB) on / and /var.
+#MIN_FREE_MB=1024
+# Required free space (MB) on /boot. Raise to ~300 on small /boot partitions.
+#MIN_BOOT_MB=150
+
+# --- rollback hook (STRONGLY recommended) ---
+# A tested command run immediately before the first package change. Use a real
+# snapshot (LVM/btrfs/ZFS/hypervisor). See contrib/hooks/pre-upgrade-snapshot.sh.
 #PRE_UPGRADE_HOOK=/usr/local/sbin/pre-upgrade-snapshot.sh
-#POST_UPGRADE_SERVICES=ssh nginx
-#NOTIFY_ON=attention
+# Seconds (1..86400) before the hook is killed.
+#PRE_UPGRADE_TIMEOUT=600
+
+# --- notifications ---
+# Command run for notifications (see README). Receives STATUS, EXIT_CODE,
+# LOG_FILE, HOST, DRIFT_COUNT, REBOOT_PENDING in its environment.
 #NOTIFY_CMD=/usr/local/sbin/notify-ops.sh
+# When to notify: fail (default) | always | attention.
+#NOTIFY_ON=attention
+
+# --- post-upgrade service checks ---
+# Space-separated systemd units to verify after the upgrade. A failed/unknown
+# unit fails the run and suppresses the automatic reboot.
+#POST_UPGRADE_SERVICES=ssh nginx postgresql
+# Seconds (0..3600) to wait before checking services.
+#POST_UPGRADE_SETTLE_SECONDS=5
+
+# --- reboot handling ---
+# Minimum seconds between automatic reboots and minimum uptime before one.
+# Protects against reboot loops. 0 disables the protection.
+#REBOOT_MIN_INTERVAL=3600
+
+# --- needrestart ---
+# a = services restarted automatically during the upgrade (default);
+# l = list only (no automatic restarts).
+#NEEDRESTART_MODE=a

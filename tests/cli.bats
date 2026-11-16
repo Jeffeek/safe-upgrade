@@ -51,7 +51,22 @@ load test_helper
   [[ "$output" == *"Run as root"* ]]
 }
 
-@test "a non-apt system (no apt-get) is refused with a clear message" {
+@test "--show-config prints effective config and exits 0 without root" {
+  run bash "$SCRIPT" --show-config
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Effective configuration"* ]]
+  [[ "$output" == *"MAX_REMOVALS"* ]]
+  [[ "$output" == *"STATE_DIR"* ]]
+}
+
+@test "--show-config reflects environment overrides and hides hook/notify contents" {
+  run env MAX_REMOVALS=0 PRE_UPGRADE_HOOK='secret-command --token=xyz' bash "$SCRIPT" --show-config
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"MAX_REMOVALS                0"* ]]
+  [[ "$output" == *"PRE_UPGRADE_HOOK            set"* ]]
+  [[ "$output" != *"secret-command"* ]]
+}
+
   # Debian/Ubuntu-only guard: with apt-get absent, preflight must bail out
   # cleanly. Needs root to get past the earlier root check; the probe for
   # apt-get is shadowed so the real binary on the runner is ignored.

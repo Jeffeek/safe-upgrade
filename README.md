@@ -8,6 +8,8 @@ A guarded full system upgrade for Debian and Ubuntu. It wraps `apt-get full-upgr
 
 > **Read this first.** The script *reduces* common upgrade risks. It cannot make APT simulation and execution atomic, it does not roll anything back by itself, and it cannot protect against power loss. Use a tested snapshot hook (`PRE_UPGRADE_HOOK`) on any machine you care about.
 
+> **Scope: Debian/Ubuntu (apt/dpkg) only — on purpose.** This is not a generic "any Linux" upgrader and will not become one. Its safety comes *from* being apt-specific: it parses `apt-get -s` simulation output, reads dpkg `Essential`/`Protected` metadata, honours `apt-mark` holds, and uses `DPkg::Lock::Timeout`. `dnf`, `zypper` and `pacman` have no equivalent set of primitives, so a one-size-fits-all wrapper would be *less* safe, not more. It runs on Debian, Ubuntu and close derivatives (Raspberry Pi OS, Linux Mint, Pop!_OS, …); on anything without `apt-get` it refuses immediately. If you only want unattended **security** updates, use Debian/Ubuntu's own [`unattended-upgrades`](https://wiki.debian.org/UnattendedUpgrades) — it is the standard tool for that and this script does not try to replace it.
+
 > **Status: beta (v0.x).** It is a root-privileged script. Read it, run `--dry-run` first, and try it in a VM before using it on a machine you care about. The project was developed with AI assistance; see [AI assistance disclosure](#ai-assistance-disclosure).
 
 ---
@@ -152,6 +154,7 @@ sudo safe-upgrade.sh --reboot
 | `--flatpak` | Also update the system (root) Flatpak installation and remove unused runtimes. Requires `flatpak`; checked before any change. |
 | `--snap` | Also run `snap refresh`. Requires `snapd`; checked before any change. |
 | `--clean` | Run `apt-get autoclean` afterwards. |
+| `--show-config` | Print the effective configuration (environment overrides and key paths) and exit 0. Does not require root, changes nothing, and never prints `PRE_UPGRADE_HOOK` / `NOTIFY_CMD` contents (only whether they are set). |
 | `-h`, `--help` | Show usage and exit. |
 
 With neither `--reboot` nor `--no-reboot`, the script is in "auto" mode: it asks `Reboot now? (y/N)` only if stdin is a terminal (120 s timeout, default no). When run non-interactively (cron, systemd) it does not reboot.
@@ -217,31 +220,24 @@ When `/boot` is mounted read-only, plans that install or remove `linux-image`, `
 
 The hook runs **lazily**, immediately before the first system mutation (dpkg repair, `full-upgrade`, `autoremove`, Flatpak, Snap). It runs with `umask 022`, a timeout, and with the script's lock descriptor closed.
 
-Put the logic in a script and point the variable at it. Treat the following as **examples to adapt and test**, not drop-in solutions.
+Put the logic in a script and point the variable at it.
+
+The repository ships a tested example, [`contrib/hooks/pre-upgrade-snapshot.sh`](contrib/hooks/pre-upgrade-snapshot.sh), that takes an **LVM** or **btrfs** snapshot. It validates its inputs, fails closed, and supports a `SNAPSHOT_DRY_RUN=1` mode that prints the exact command it would run without running it — use that to check your configuration first:
 
 ```bash
-#!/usr/bin/env bash
-# /usr/local/sbin/pre-upgrade-snapshot.sh   (chmod 0750, owned by root)
-set -euo pipefail
-stamp=$(date +%Y%m%d-%H%M%S)
+# Check what it would do (prints the command, takes no snapshot)
+sudo SNAPSHOT_DRY_RUN=1 SNAPSHOT_METHOD=lvm \
+     LVM_VOLUME=/dev/vg0/root LVM_SNAPSHOT_SIZE=5G \
+     contrib/hooks/pre-upgrade-snapshot.sh
 
-# LVM (root on /dev/vg0/root; needs free space in the volume group)
-lvcreate --snapshot --name "pre-upgrade-$stamp" --size 5G /dev/vg0/root
-
-# btrfs (snapshots directory must exist)
-# btrfs subvolume snapshot -r / "/.snapshots/pre-upgrade-$stamp"
-
-# ZFS (adjust dataset name)
-# zfs snapshot "rpool/ROOT/ubuntu@pre-upgrade-$stamp"
+# Wire it in (install it root-owned, mode 0750, then set the variable)
+sudo install -o root -g root -m 0750 contrib/hooks/pre-upgrade-snapshot.sh /usr/local/sbin/
+sudo SNAPSHOT_METHOD=btrfs BTRFS_SUBVOLUME=/ BTRFS_SNAPSHOT_DIR=/.snapshots \
+     PRE_UPGRADE_HOOK=/usr/local/sbin/pre-upgrade-snapshot.sh \
+     safe-upgrade.sh
 ```
 
-Then:
-
-```bash
-sudo PRE_UPGRADE_HOOK=/usr/local/sbin/pre-upgrade-snapshot.sh safe-upgrade.sh
-```
-
-For virtual machines, a hypervisor snapshot (via its CLI or API) is usually the strongest rollback point. Also write down and **test the restore procedure**; the script itself never restores anything.
+It is still **an example to adapt and test**, not a guarantee: a snapshot you have never restored is not a backup. For ZFS, custom layouts, or anything else, write your own hook on the same pattern. For virtual machines, a hypervisor snapshot (via its CLI or API) is usually the strongest rollback point. Write down and **test the restore procedure**; the script itself never restores anything.
 
 ## Notifications
 
@@ -493,9 +489,13 @@ No packages were changed. Fix the hook (test it standalone as root) or raise `PR
 
 ``` layout
 safe-upgrade.sh                    the script
+contrib/
+  systemd/                         service, timer and /etc/default example
+  hooks/pre-upgrade-snapshot.sh    tested LVM/btrfs snapshot hook example
 tests/
   unit.bats                        unit tests (bats) for the script's functions
   cli.bats                         tests that execute the script (help, bad options, file hygiene)
+  hooks.bats                       tests for the contrib snapshot hook
   test_helper.bash, stubs.bash     helpers; external commands are replaced by shell functions
   integration/
     container-test.sh              end-to-end tests, run inside a disposable container
@@ -508,7 +508,7 @@ Makefile                           make lint | test | integration | check
 ### Running the tests locally
 
 ```bash
-# Unit and CLI tests (install bats first: sudo apt-get install bats, or from bats-core)
+# Unit, CLI and hook tests (install bats first: sudo apt-get install bats, or from bats-core)
 make test
 
 # Static checks (needs shellcheck)
@@ -527,9 +527,10 @@ The integration script modifies `/var/log`, `/var/lib`, `/run` and `/usr/local/b
 | Layer | How | What it covers |
 | --- | --- | --- |
 | Unit (`unit.bats`) | The script is sourced in a throw-away `bash`; `apt-mark`, `dpkg-query`, `uname`, `systemctl` are stubbed | Pattern matching, input validation, removal guards (limits, protected, essential, held, running kernel, malformed records, fail-closed paths), reboot detection and loop protection, state rotation, crash-record detection, inventory diffs, service-health logic, space checks, symlink and ownership checks |
-| CLI (`cli.bats`) | The script is executed | `--help`, unknown options, non-root refusal, non-apt-system refusal, shebang, line endings, syntax |
+| CLI (`cli.bats`) | The script is executed | `--help`, `--show-config` (incl. not leaking hook/notify contents), unknown options, non-root refusal, non-apt-system refusal, shebang, line endings, syntax |
+| Hooks (`hooks.bats`) | The contrib snapshot hook is run with `SNAPSHOT_DRY_RUN=1` | Input validation (missing/invalid method, volume, size), and the exact LVM/btrfs commands it forms |
 | Integration A | Real `apt-get` in Debian/Ubuntu containers | `--dry-run`, a real run, an immediate second run, `--clean` |
-| Integration B | A scripted fake `apt-get` and `shutdown` | Guards blocking before any change, hook success/failure/timeout, no snapshot on no-op runs, autoremove guard, lock conflict (exit 75), interrupted-run record, invalid configuration, notifications, reboot scheduling and suppression, SIGTERM handling |
+| Integration B | A scripted fake `apt-get` and `shutdown` | Guards blocking before any change, `--show-config`, hook success/failure/timeout, no snapshot on no-op runs, autoremove guard, lock conflict (exit 75), interrupted-run record, invalid configuration, notifications, reboot scheduling and suppression, SIGTERM handling |
 | Systemd (systemd-test.sh) | Real systemd on GitHub runners; fake apt-get | Unit states for POST_UPGRADE_SERVICES, reboot blocking, the contrib service and timer, stopping the service mid-run. |
 
 The tests were also checked by deliberately breaking the script in small ways (for example ignoring the removal limit, or sorting kernel versions as strings) and confirming that tests fail.

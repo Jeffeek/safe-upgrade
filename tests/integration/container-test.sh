@@ -346,6 +346,18 @@ run_script NOTIFY_ON=sometimes -- --dry-run
 grep -qF "NOTIFY_ON must be" <<<"$OUT" || fail "missing NOTIFY_ON message"
 end
 
+begin "B16b --show-config prints effective values and changes nothing"
+reset_state; sim_two_upgrades
+run_script MAX_REMOVALS=0 PROTECTED_PKGS="nginx*" -- --show-config
+assert_rc 0
+assert_out "Effective configuration"
+assert_out "MAX_REMOVALS                0"
+assert_out "nginx*"
+assert_no_real_apt 'full-upgrade'
+assert_no_file "$LOGF"
+assert_no_glob "$STATE/run-*.status"
+end
+
 begin "B17 --flatpak without flatpak installed is a clear error"
 reset_state
 if command -v flatpak >/dev/null 2>&1; then

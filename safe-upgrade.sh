@@ -118,6 +118,7 @@ UPDATE_ATTEMPTS=3
 UPDATE_RETRY_DELAY=45
 
 DRY_RUN=0
+SHOW_CONFIG=0
 REBOOT_MODE=auto
 DO_FLATPAK=0
 DO_SNAP=0
@@ -159,11 +160,46 @@ Usage: sudo safe-upgrade.sh [options]
                'flatpak' package (checked up front; not installed by default).
   --snap       Also refresh Snap packages. Requires 'snapd' (checked up front).
   --clean      Run guarded apt-get autoclean afterwards.
+  --show-config  Print the effective configuration (environment overrides and
+               key paths) and exit. Does not require root and changes nothing.
   -h, --help   Show this help.
 
 Environment variables and security notes are documented at the top of the script.
 Only trusted administrators should control environment overrides or invoke this
 root-privileged script with custom PRE_UPGRADE_HOOK / NOTIFY_CMD values.
+EOF
+}
+
+# Print the configuration this run would use: the effective value of every
+# environment override plus the key paths. A read-only introspection aid, so a
+# user can confirm what an unattended run will do without reading the script or
+# running an upgrade. Secrets are not involved; PRE_UPGRADE_HOOK / NOTIFY_CMD
+# are shown as set/unset only, because they are arbitrary shell and may be long.
+show_config() {
+  local hook_state=unset notify_state=unset
+  [ -z "$PRE_UPGRADE_HOOK" ] || hook_state="set"
+  [ -z "$NOTIFY_CMD" ] || notify_state="set"
+  cat <<EOF
+Effective configuration (environment overrides; defaults shown when unset):
+  MAX_REMOVALS                $MAX_REMOVALS
+  MAX_AUTOREMOVALS            $MAX_AUTOREMOVALS
+  PROTECTED_PKGS              $PROTECTED_PKGS
+  MIN_FREE_MB                 $MIN_FREE_MB
+  MIN_BOOT_MB                 $MIN_BOOT_MB
+  PRE_UPGRADE_HOOK            $hook_state
+  PRE_UPGRADE_TIMEOUT         $PRE_UPGRADE_TIMEOUT
+  NOTIFY_CMD                  $notify_state
+  NOTIFY_ON                   $NOTIFY_ON
+  POST_UPGRADE_SERVICES       ${POST_UPGRADE_SERVICES:-(none)}
+  POST_UPGRADE_SETTLE_SECONDS $POST_UPGRADE_SETTLE_SECONDS
+  REBOOT_MIN_INTERVAL         $REBOOT_MIN_INTERVAL
+  NEEDRESTART_MODE            $NEEDRESTART_MODE
+
+Paths:
+  LOG_FILE                    $LOG_FILE
+  STATE_DIR                   $STATE_DIR
+  LOCK_FILE                   $LOCK_FILE
+  BOOT_DIR                    $BOOT_DIR
 EOF
 }
 
@@ -935,6 +971,7 @@ parse_args() {
       --flatpak)   DO_FLATPAK=1 ;;
       --snap)      DO_SNAP=1 ;;
       --clean)     DO_CLEAN=1 ;;
+      --show-config) SHOW_CONFIG=1 ;;
       -h|--help)   usage; exit 0 ;;
       *)           usage >&2; die "Unknown option: $1" ;;
     esac
@@ -1036,6 +1073,10 @@ main() {
   local sim asim summary upgrades acount drift
 
   parse_args "$@"
+  if [ "$SHOW_CONFIG" -eq 1 ]; then
+    show_config
+    exit 0
+  fi
   preflight
   setup_logging
   acquire_lock

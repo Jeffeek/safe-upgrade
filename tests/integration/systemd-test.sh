@@ -70,8 +70,8 @@ unit_prop() { systemctl show -p "$2" --value "$1" 2>/dev/null; }
 
 # Poll until a unit property has the wanted value (max ~15s).
 wait_prop() { # unit property value
-  local i
-  for i in $(seq 1 60); do
+  local _
+  for _ in $(seq 1 60); do
     [ "$(unit_prop "$1" "$2")" = "$3" ] && return 0
     sleep 0.25
   done

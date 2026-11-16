@@ -33,13 +33,21 @@ jobs:
           fi
 
       - name: Syntax check
-        run: bash -n safe-upgrade.sh && bash -n tests/integration/container-test.sh
+        run: |
+          bash -n safe-upgrade.sh
+          bash -n tests/integration/container-test.sh
+          bash -n tests/integration/systemd-test.sh
+          bash -n contrib/hooks/pre-upgrade-snapshot.sh
 
       - name: ShellCheck
         # ShellCheck is preinstalled on GitHub's Ubuntu runners.
         run: |
           shellcheck --version
-          shellcheck --severity=warning safe-upgrade.sh tests/integration/container-test.sh
+          shellcheck --severity=warning \
+            safe-upgrade.sh \
+            tests/integration/container-test.sh \
+            tests/integration/systemd-test.sh \
+            contrib/hooks/pre-upgrade-snapshot.sh
 
   unit-tests:
     name: Unit tests (${{ matrix.os }})
@@ -59,10 +67,10 @@ jobs:
           bats --version
 
       - name: Run tests as a normal user
-        run: bats --print-output-on-failure tests/unit.bats tests/cli.bats
+        run: bats --print-output-on-failure tests/unit.bats tests/cli.bats tests/hooks.bats
 
       - name: Run tests as root (covers the root-only branches)
-        run: sudo "$(command -v bats)" --print-output-on-failure tests/unit.bats tests/cli.bats
+        run: sudo "$(command -v bats)" --print-output-on-failure tests/unit.bats tests/cli.bats tests/hooks.bats
 
   integration:
     name: Integration (${{ matrix.image }} on ${{ matrix.runner }})

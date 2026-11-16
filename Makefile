@@ -13,10 +13,13 @@ help:
 
 lint:
 	bash -n $(SCRIPT)
-	shellcheck --severity=warning $(SCRIPT) tests/integration/container-test.sh
+	shellcheck --severity=warning $(SCRIPT) \
+	  tests/integration/container-test.sh \
+	  tests/integration/systemd-test.sh \
+	  contrib/hooks/pre-upgrade-snapshot.sh
 
 test:
-	bats --print-output-on-failure tests/unit.bats tests/cli.bats
+	bats --print-output-on-failure tests/unit.bats tests/cli.bats tests/hooks.bats
 
 integration:
 	for image in $(IMAGES); do \

@@ -8,6 +8,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (0.x = beta).
 
 ### Added
 
+- `--show-config`: prints the effective configuration (every environment
+  override and the key paths) and exits. Does not require root, changes nothing,
+  and never prints `PRE_UPGRADE_HOOK` / `NOTIFY_CMD` contents (only set/unset).
+- `contrib/hooks/pre-upgrade-snapshot.sh`: a tested LVM/btrfs rollback-snapshot
+  hook example, with input validation and a `SNAPSHOT_DRY_RUN=1` mode, plus
+  `tests/hooks.bats` covering it.
 - CLI test asserting the Debian/Ubuntu-only guard: on a system without
   `apt-get`, the script refuses cleanly with a clear message.
 - CI job running the offline integration tests against a real Raspberry Pi OS
@@ -18,6 +24,15 @@ and the project uses [Semantic Versioning](https://semver.org/) (0.x = beta).
 
 ### Changed
 
+- Documentation now states plainly that the tool is apt/dpkg-only by design
+  (Debian/Ubuntu and close derivatives) and will not become a generic
+  multi-distro upgrader, because its safety comes from being apt-specific. For
+  security-only updates it continues to point at `unattended-upgrades`.
+- `contrib/systemd/safe-upgrade.default` now documents every supported
+  environment override (commented), so the config file is self-describing.
+- `make lint` and the CI lint step now also ShellCheck `systemd-test.sh` and the
+  contrib snapshot hook; `make test` and the CI unit-test jobs now run
+  `tests/hooks.bats`.
 - CI now also tests on Ubuntu 26.04 (amd64 and arm64) across the unit, systemd
   and Docker integration matrices, and the Docker integration adds an
   `ubuntu:26.04` image. `make integration` picks it up by default too.
@@ -28,7 +43,8 @@ and the project uses [Semantic Versioning](https://semver.org/) (0.x = beta).
   removed a stray editing artifact in the reboot-handling section, de-duplicated
   the systemd scheduling commands, and aligned the CI table's runner labels with
   the pinned `ubuntu-24.04` jobs.
-- Removed a dead no-op line from `refresh_package_lists`.
+- Removed a dead no-op line from `refresh_package_lists`, and an unused loop
+  variable in `systemd-test.sh` flagged once it was added to ShellCheck.
 
 ## [0.2.0] - 2026-11-16
 
