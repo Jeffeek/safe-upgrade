@@ -92,23 +92,23 @@ jobs:
               bash /src/tests/integration/container-test.sh
             '
 
-systemd:
-  name: Real systemd (${{ matrix.os }})
-  runs-on: ${{ matrix.os }}
-  needs: [lint]
-  timeout-minutes: 15
-  strategy:
-    fail-fast: false
-    matrix:
-      os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
-  steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
-    - name: systemd state
-      run: |
-        systemctl --version | head -n1
-        systemctl is-system-running || true
-    - name: Run real-systemd tests
-      run: sudo env I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes bash tests/integration/systemd-test.sh
+  systemd:
+    name: Real systemd (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [lint]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+      - name: systemd state
+        run: |
+          systemctl --version | head -n1
+          systemctl is-system-running || true
+      - name: Run real-systemd tests
+        run: sudo env I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes bash tests/integration/systemd-test.sh
 
   # A single required check for branch protection.
   ci-ok:
