@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 SCRIPT := safe-upgrade.sh
-IMAGES ?= debian:12 debian:13 ubuntu:22.04 ubuntu:24.04
+IMAGES ?= debian:12 debian:13 ubuntu:22.04 ubuntu:24.04 ubuntu:26.04
 
 .PHONY: help lint test integration check
 

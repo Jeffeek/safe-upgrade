@@ -48,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         # amd64 and arm64 (Raspberry Pi class) on current and previous LTS.
-        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, ubuntu-26.04, ubuntu-26.04-arm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
@@ -72,7 +72,7 @@ jobs:
       fail-fast: false
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
-        image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04"]
+        image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:26.04"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
@@ -100,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, ubuntu-26.04, ubuntu-26.04-arm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
       - name: systemd state
@@ -110,17 +110,44 @@ jobs:
       - name: Run real-systemd tests
         run: sudo env I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes bash tests/integration/systemd-test.sh
 
+  # Real Raspberry Pi OS userland (arm64): genuine apt/dpkg/apt-mark and the
+  # Pi /boot + /lib/modules package layout, which plain Debian/Ubuntu images do
+  # not reproduce. LIMITATION: arm-runner-action uses qemu-user emulation and
+  # shares the host kernel, so `uname -r` is the runner's, not a +rpt-rpi-v8
+  # string. The Pi reboot-detection path is therefore NOT exercised here (it is
+  # covered by the FAKE_KERNEL unit tests); this job covers the apt/dpkg flow on
+  # a real Pi OS root filesystem. Offline phase only (no network inside qemu).
+  raspios:
+    name: Raspberry Pi OS userland (arm64, qemu)
+    runs-on: ubuntu-24.04-arm
+    needs: [lint]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
+      - name: Run offline integration on real Pi OS userland
+        uses: pguyot/arm-runner-action@e1773de1ed6eb61848f5693de824d836f0b0ea25 # v2.6.5
+        with:
+          base_image: raspios_lite_arm64:latest
+          cpu: cortex-a53
+          commands: |
+            set -eu
+            apt-get update -qq || true
+            apt-get install -y -qq util-linux >/dev/null 2>&1 || true
+            SKIP_REAL_APT=1 I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes \
+              bash tests/integration/container-test.sh
+
   # A single required check for branch protection.
   ci-ok:
     name: CI passed
     runs-on: ubuntu-24.04
     if: always()
-    needs: [lint, unit-tests, integration, systemd]
+    needs: [lint, unit-tests, integration, systemd, raspios]
     steps:
       - name: Verify every job succeeded
         run: |
-          echo "lint=${{ needs.lint.result }} unit=${{ needs.unit-tests.result }} integration=${{ needs.integration.result }} systemd=${{ needs.systemd.result }}"
+          echo "lint=${{ needs.lint.result }} unit=${{ needs.unit-tests.result }} integration=${{ needs.integration.result }} systemd=${{ needs.systemd.result }} raspios=${{ needs.raspios.result }}"
           [ "${{ needs.lint.result }}" = success ] &&
           [ "${{ needs.unit-tests.result }}" = success ] &&
           [ "${{ needs.integration.result }}" = success ] &&
-          [ "${{ needs.systemd.result }}" = success ]
+          [ "${{ needs.systemd.result }}" = success ] &&
+          [ "${{ needs.raspios.result }}" = success ]

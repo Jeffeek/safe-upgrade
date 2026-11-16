@@ -667,7 +667,7 @@ apt_supports_error_on() {
 }
 
 refresh_package_lists() {
-  local attempt use_error_on_any=0 rc output_file
+  local attempt rc output_file
   local -a update_opts=(
     -o "DPkg::Lock::Timeout=$APT_LOCK_TIMEOUT"
     -o Acquire::Retries=2
@@ -675,7 +675,6 @@ refresh_package_lists() {
     -o Acquire::https::Timeout=30
   )
   if apt_supports_error_on; then
-    use_error_on_any=1
     update_opts=(--error-on=any "${update_opts[@]}")
   fi
 
@@ -704,7 +703,6 @@ refresh_package_lists() {
     fi
   done
   rm -f -- "$output_file"
-  [ "$use_error_on_any" -eq 1 ] || true
   die "apt-get update failed after $UPDATE_ATTEMPTS attempts."
 }
 

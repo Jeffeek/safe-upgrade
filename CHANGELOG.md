@@ -4,7 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/) (0.x = beta).
 
-## [Released]
+## [Unreleased]
+
+### Added
+
+- CLI test asserting the Debian/Ubuntu-only guard: on a system without
+  `apt-get`, the script refuses cleanly with a clear message.
+- CI job running the offline integration tests against a real Raspberry Pi OS
+  arm64 userland (via `arm-runner-action`/qemu-user), covering genuine
+  `apt`/`dpkg`/`apt-mark` behaviour and the Pi `/boot` + `/lib/modules` layout.
+  The job runs on the host kernel, so the Pi reboot-detection path is not
+  exercised there (it remains covered by the `FAKE_KERNEL` unit tests).
+
+### Changed
+
+- CI now also tests on Ubuntu 26.04 (amd64 and arm64) across the unit, systemd
+  and Docker integration matrices, and the Docker integration adds an
+  `ubuntu:26.04` image. `make integration` picks it up by default too.
+
+### Fixed
+
+- Documentation: corrected the `systemd-test.sh` path in the repository layout,
+  removed a stray editing artifact in the reboot-handling section, de-duplicated
+  the systemd scheduling commands, and aligned the CI table's runner labels with
+  the pinned `ubuntu-24.04` jobs.
+- Removed a dead no-op line from `refresh_package_lists`.
 
 ## [0.2.0] - 2026-11-16
 

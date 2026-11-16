@@ -50,3 +50,20 @@ load test_helper
   [ "$status" -eq 1 ]
   [[ "$output" == *"Run as root"* ]]
 }
+
+@test "a non-apt system (no apt-get) is refused with a clear message" {
+  # Debian/Ubuntu-only guard: with apt-get absent, preflight must bail out
+  # cleanly. Needs root to get past the earlier root check; the probe for
+  # apt-get is shadowed so the real binary on the runner is ignored.
+  if [ "$(id -u)" -ne 0 ]; then
+    skip "needs root to reach the apt-get check in preflight"
+  fi
+  run bash -c '
+    source "$1"
+    command() { if [ "${1:-}" = -v ] && [ "${2:-}" = apt-get ]; then return 1; fi; builtin command "$@"; }
+    preflight
+  ' _ "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Debian/Ubuntu only"* ]]
+}
+

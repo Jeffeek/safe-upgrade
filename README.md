@@ -295,7 +295,7 @@ A reboot is considered needed when `/run/reboot-required` exists, or when a newe
 | `--no-reboot` | Never reboots; reports that one is pending. |
 | *(default)* | Prompts on a terminal; otherwise does not reboot. |
 
-If any step failed, no automatic reboot is scheduled. Reboot-loop protection refuses an automatic reboot if uptime is below `REBOOT_MIN_INTERVAL`, the last automatic reboot was more recent, or the state file is unreadable (delete `/var/lib/safe-upgrade/last-auto-reboot` to re-enable). The interval protection applies to `--reboot`, not to the interactive prompt. /lib/modules fallback exists
+If any step failed, no automatic reboot is scheduled. Reboot-loop protection refuses an automatic reboot if uptime is below `REBOOT_MIN_INTERVAL`, the last automatic reboot was more recent, or the state file is unreadable (delete `/var/lib/safe-upgrade/last-auto-reboot` to re-enable). The interval protection applies to `--reboot`, not to the interactive prompt.
 
 ## Scheduling with systemd
 
@@ -305,11 +305,8 @@ A oneshot service plus a persistent timer is recommended: missed runs catch up a
 sudo install -m 0644 contrib/systemd/safe-upgrade.service contrib/systemd/safe-upgrade.timer /etc/systemd/system/
 sudo install -m 0600 contrib/systemd/safe-upgrade.default /etc/default/safe-upgrade
 sudo systemctl daemon-reload && sudo systemctl enable --now safe-upgrade.timer
-```
 
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now safe-upgrade.timer
+# Check it is scheduled, and read the service log after a run
 systemctl list-timers safe-upgrade.timer
 journalctl -u safe-upgrade.service -e
 ```
@@ -502,7 +499,7 @@ tests/
   test_helper.bash, stubs.bash     helpers; external commands are replaced by shell functions
   integration/
     container-test.sh              end-to-end tests, run inside a disposable container
-    integration/systemd-test.sh    real-systemd tests (disposable VM only)
+    systemd-test.sh                real-systemd tests (disposable VM only)
 .github/workflows/ci.yml           lint + test matrix + Docker integration
 .github/workflows/release.yml      tag-triggered release (runs CI first)
 Makefile                           make lint | test | integration | check
@@ -530,7 +527,7 @@ The integration script modifies `/var/log`, `/var/lib`, `/run` and `/usr/local/b
 | Layer | How | What it covers |
 | --- | --- | --- |
 | Unit (`unit.bats`) | The script is sourced in a throw-away `bash`; `apt-mark`, `dpkg-query`, `uname`, `systemctl` are stubbed | Pattern matching, input validation, removal guards (limits, protected, essential, held, running kernel, malformed records, fail-closed paths), reboot detection and loop protection, state rotation, crash-record detection, inventory diffs, service-health logic, space checks, symlink and ownership checks |
-| CLI (`cli.bats`) | The script is executed | `--help`, unknown options, non-root refusal, shebang, line endings, syntax |
+| CLI (`cli.bats`) | The script is executed | `--help`, unknown options, non-root refusal, non-apt-system refusal, shebang, line endings, syntax |
 | Integration A | Real `apt-get` in Debian/Ubuntu containers | `--dry-run`, a real run, an immediate second run, `--clean` |
 | Integration B | A scripted fake `apt-get` and `shutdown` | Guards blocking before any change, hook success/failure/timeout, no snapshot on no-op runs, autoremove guard, lock conflict (exit 75), interrupted-run record, invalid configuration, notifications, reboot scheduling and suppression, SIGTERM handling |
 | Systemd (systemd-test.sh) | Real systemd on GitHub runners; fake apt-get | Unit states for POST_UPGRADE_SERVICES, reboot blocking, the contrib service and timer, stopping the service mid-run. |
@@ -541,11 +538,12 @@ The tests were also checked by deliberately breaking the script in small ways (f
 
 | Job | Where | Purpose |
 | --- | --- | --- |
-| Lint | `ubuntu-latest` | Shebang and line-ending check, `bash -n`, ShellCheck |
-| Unit tests | `ubuntu-22.04`, `ubuntu-24.04`, `ubuntu-24.04-arm` | Same tests on amd64 and arm64 (Raspberry Pi class CPUs), once as a normal user and once as root |
-| Integration | `ubuntu-24.04` and `ubuntu-24.04-arm` x `debian:12`, `debian:13`, `ubuntu:22.04`, `ubuntu:24.04` | The end-to-end tests in 8 containers |
-| CI passed | `ubuntu-latest` | One aggregate check to require in branch protection |
-| Real systemd | ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm | Integration systemd tests |
+| Lint | `ubuntu-24.04` | Shebang and line-ending check, `bash -n`, ShellCheck |
+| Unit tests | `ubuntu-22.04`, `ubuntu-24.04`, `ubuntu-24.04-arm`, `ubuntu-26.04`, `ubuntu-26.04-arm` | Same tests on amd64 and arm64 (Raspberry Pi class CPUs), once as a normal user and once as root |
+| Integration | `ubuntu-24.04` and `ubuntu-24.04-arm` x `debian:12`, `debian:13`, `ubuntu:22.04`, `ubuntu:24.04`, `ubuntu:26.04` | The end-to-end tests in 10 containers |
+| CI passed | `ubuntu-24.04` | One aggregate check to require in branch protection |
+| Real systemd | ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, ubuntu-26.04, ubuntu-26.04-arm | Integration systemd tests |
+| Raspberry Pi OS (arm64) | `ubuntu-24.04-arm` via qemu-user | The offline integration phase on a real Pi OS userland (genuine `apt`/`dpkg`/`apt-mark` and the Pi `/boot` + `/lib/modules` layout). The kernel is the host runner's, so the Pi reboot path is *not* exercised here. |
 
 CI runs on pushes to `main`, on pull requests, on demand, and **weekly**, so a change in a distribution's APT or dpkg behaviour is noticed even when the repository is quiet. Dependabot keeps the GitHub Actions versions current.
 
@@ -555,7 +553,12 @@ CI runs on pushes to `main`, on pull requests, on demand, and **weekly**, so a c
 - Real systemd is covered on GitHub’s Ubuntu runners only, not on Debian or Raspberry Pi OS
 - Snapshot hooks (LVM, btrfs, ZFS, hypervisor) and restoring from them.
 - Flatpak and Snap flows.
-- Raspberry Pi OS itself. The arm64 jobs test Debian/Ubuntu userland on arm64, not Raspberry Pi OS kernels or firmware packages.
+- Raspberry Pi OS *kernels and firmware*. A CI job runs the offline integration
+  tests against a real Pi OS arm64 userland (so `apt`/`dpkg` and the Pi `/boot` +
+  `/lib/modules` layout are exercised), but it runs under qemu-user on the host
+  kernel: `uname -r` is not a `+rpt-rpi-v8` string, so the Pi reboot-detection
+  path and EEPROM/bootloader firmware updates are not covered there. The reboot
+  logic itself is covered by the `FAKE_KERNEL` unit tests.
 - Power loss or `kill -9` in the middle of `dpkg`.
 
 Treat the test suite as evidence, not proof. Test on a copy of your own system before relying on it.
