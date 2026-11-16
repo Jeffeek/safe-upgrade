@@ -136,9 +136,6 @@ jobs:
         with:
           base_image: raspios_lite_arm64:latest
           cpu: cortex-a53
-          # Pi OS Lite ships only ~300MB free; grow the image so the real
-          # MIN_FREE_MB=1024 space check passes (Phase B installs nothing).
-          image_additional_mb: 2048
           # Skip the final filesystem shrink: it runs e2fsck on the host, whose
           # e2fsprogs is too old for the newer Pi OS filesystem features.
           optimize_image: false
@@ -147,6 +144,14 @@ jobs:
             # util-linux (findmnt/mountpoint) and flock are part of the Pi OS
             # Lite base image, so no in-guest apt install is needed (and the
             # guest has no network under qemu anyway).
+            #
+            # The Pi OS Lite image has only ~300MB free, below the real
+            # MIN_FREE_MB=1024 default. Phase B uses a scripted apt-get that
+            # installs nothing, so the space check is incidental here, not the
+            # behaviour under test; lower it so the scenarios run. The scenario
+            # that does test the space guard (B18) sets its own high value,
+            # which still takes precedence over these inherited defaults.
+            export MIN_FREE_MB=64 MIN_BOOT_MB=1
             SKIP_REAL_APT=1 I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes \
               bash tests/integration/container-test.sh
 
