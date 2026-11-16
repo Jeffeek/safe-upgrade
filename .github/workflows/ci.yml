@@ -136,6 +136,12 @@ jobs:
         with:
           base_image: raspios_lite_arm64:latest
           cpu: cortex-a53
+          # Pi OS Lite ships only ~300MB free; grow the image so the real
+          # MIN_FREE_MB=1024 space check passes (Phase B installs nothing).
+          image_additional_mb: 2048
+          # Skip the final filesystem shrink: it runs e2fsck on the host, whose
+          # e2fsprogs is too old for the newer Pi OS filesystem features.
+          optimize_image: false
           commands: |
             set -eu
             # util-linux (findmnt/mountpoint) and flock are part of the Pi OS
