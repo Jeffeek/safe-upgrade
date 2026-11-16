@@ -543,7 +543,7 @@ The tests were also checked by deliberately breaking the script in small ways (f
 | Integration | `ubuntu-24.04` and `ubuntu-24.04-arm` x `debian:12`, `debian:13`, `ubuntu:22.04`, `ubuntu:24.04`, `ubuntu:26.04` | The end-to-end tests in 10 containers |
 | CI passed | `ubuntu-24.04` | One aggregate check to require in branch protection |
 | Real systemd | ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, ubuntu-26.04, ubuntu-26.04-arm | Integration systemd tests |
-| Raspberry Pi OS (arm64) | `ubuntu-24.04-arm` via qemu-user | The offline integration phase on a real Pi OS userland (genuine `apt`/`dpkg`/`apt-mark` and the Pi `/boot` + `/lib/modules` layout). The kernel is the host runner's, so the Pi reboot path is *not* exercised here. |
+| Raspberry Pi OS (arm64) | `ubuntu-22.04` host, arm64 emulated via qemu-user | The offline integration phase on a real Pi OS userland (genuine `apt`/`dpkg`/`apt-mark` and the Pi `/boot` + `/lib/modules` layout). The kernel is the host runner's, so the Pi reboot path is *not* exercised here. |
 
 CI runs on pushes to `main`, on pull requests, on demand, and **weekly**, so a change in a distribution's APT or dpkg behaviour is noticed even when the repository is quiet. Dependabot keeps the GitHub Actions versions current.
 

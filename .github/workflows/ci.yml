@@ -117,9 +117,16 @@ jobs:
   # string. The Pi reboot-detection path is therefore NOT exercised here (it is
   # covered by the FAKE_KERNEL unit tests); this job covers the apt/dpkg flow on
   # a real Pi OS root filesystem. Offline phase only (no network inside qemu).
+  #
+  # Runs on an amd64 host: arm-runner-action EMULATES aarch64 via qemu and
+  # re-registers the aarch64 binfmt handler, which corrupts a native arm64
+  # runner's own binaries. It must run on x86_64, and ubuntu-22.04 is the most
+  # stable host for the action's qemu/binfmt setup (newer hosts have seen
+  # emulation segfaults during guest package installs; see arm-runner-action
+  # issues #114, #120, #132).
   raspios:
     name: Raspberry Pi OS userland (arm64, qemu)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04
     needs: [lint]
     timeout-minutes: 20
     steps:
@@ -131,8 +138,9 @@ jobs:
           cpu: cortex-a53
           commands: |
             set -eu
-            apt-get update -qq || true
-            apt-get install -y -qq util-linux >/dev/null 2>&1 || true
+            # util-linux (findmnt/mountpoint) and flock are part of the Pi OS
+            # Lite base image, so no in-guest apt install is needed (and the
+            # guest has no network under qemu anyway).
             SKIP_REAL_APT=1 I_UNDERSTAND_THIS_MODIFIES_THE_SYSTEM=yes \
               bash tests/integration/container-test.sh
 
