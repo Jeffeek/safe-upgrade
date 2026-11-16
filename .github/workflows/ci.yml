@@ -21,7 +21,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: File hygiene (shebang, line endings)
         run: |
@@ -50,7 +50,7 @@ jobs:
         # amd64 and arm64 (Raspberry Pi class) on current and previous LTS.
         os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Install bats-core (pinned)
         run: |
@@ -74,7 +74,7 @@ jobs:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
         image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # 7.0.1
 
       - name: Run end-to-end tests in a disposable container
         # Phase A uses the real apt-get; phase B uses a scripted fake (see
