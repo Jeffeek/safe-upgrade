@@ -30,8 +30,9 @@ jobs:
           mkdir -p dist
           pkg="safe-upgrade-${TAG}"
           mkdir "dist/${pkg}"
-          cp safe-upgrade.sh README.md LICENSE CHANGELOG.md "dist/${pkg}/"
+          cp Makefile safe-upgrade.sh README.md LICENSE CHANGELOG.md "dist/${pkg}/"
           cp -r tests "dist/${pkg}/tests"
+          cp -r contrib "dist/${pkg}/contrib"
           tar -C dist -czf "dist/${pkg}.tar.gz" "${pkg}"
           cp safe-upgrade.sh dist/safe-upgrade.sh
           (cd dist && sha256sum safe-upgrade.sh "${pkg}.tar.gz" > SHA256SUMS && cat SHA256SUMS)
